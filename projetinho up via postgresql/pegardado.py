@@ -108,7 +108,7 @@ def publish_weights_mqtt(weights):
     client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
     client.loop_start()
 
-    time.sleep(1)  # Espera para garantir que a conexão foi estabelecida
+    time.sleep(1) 
     weights_json = json.dumps(weights)
     client.publish(MQTT_TOPIC, weights_json)
     print(f"Mensagem publicada no tópico '{MQTT_TOPIC}': {weights_json}")
