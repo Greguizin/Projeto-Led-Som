@@ -2,10 +2,13 @@ from sqlalchemy import create_engine, Column, Integer, Float
 from sqlalchemy.orm import Session, declarative_base
 from dotenv import load_dotenv
 import os
+import time
 import random
 import matplotlib.pyplot as plt
 import numpy as np
 from models import LdrReading
+import paho.mqtt.client as mqtt  # Biblioteca MQTT
+import json  # Para serializar weights
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -17,6 +20,11 @@ db_user = os.getenv("DB_USER")
 db_pass = os.getenv("DB_PASS")
 db_name = os.getenv("DB_NAME")
 
+# Configurações do MQTT
+MQTT_BROKER = "broker.emqx.io"
+MQTT_PORT = 1883
+MQTT_TOPIC = "meu/topico"
+
 # Criar engine do SQLAlchemy
 engine = create_engine(
     f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
@@ -24,7 +32,6 @@ engine = create_engine(
 
 # Base declarativa para mapeamento de tabelas
 Base = declarative_base()
-
 
 # Criar tabelas no banco, se não existirem
 Base.metadata.create_all(engine)
@@ -34,7 +41,6 @@ def fetch_data_from_postgresql():
     """Busca os dados da tabela 'ldr_readings' no banco de dados PostgreSQL."""
     try:
         with Session(engine) as session:
-            # Selecionar dados da tabela
             result = session.query(LdrReading.red, LdrReading.green, LdrReading.blue).all()
             return [list(row) for row in result]
     except Exception as e:
@@ -97,6 +103,19 @@ def get_ldr_readings():
     ]
 
 
+def publish_weights_mqtt(weights):
+    client = mqtt.Client()
+    client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+    client.loop_start()
+
+    time.sleep(1)  # Espera para garantir que a conexão foi estabelecida
+    weights_json = json.dumps(weights)
+    client.publish(MQTT_TOPIC, weights_json)
+    print(f"Mensagem publicada no tópico '{MQTT_TOPIC}': {weights_json}")
+
+    client.loop_stop()
+    client.disconnect()
+
 def main():
     # Buscar dados da tabela no PostgreSQL
     T = fetch_data_from_postgresql()
@@ -129,6 +148,9 @@ def main():
     print("Pesos dos clusters:", weights)
 
     plot_som(weights, T, "Classificação de Leituras do LDR", ldr_readings, clusters, show_samples=False)
+
+    # Publicar pesos no MQTT
+    publish_weights_mqtt(weights)
 
 
 if __name__ == "__main__":
